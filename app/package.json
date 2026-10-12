@@ -1,0 +1,22 @@
+{
+  "name": "certify",
+  "version": "1.0.0",
+  "description": "Create, approve and issue certificates",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "express": "^5.2.1",
+    "jszip": "^3.10.2",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.11.174",
+    "qrcode": "^1.5.4"
+  },
+  "private": true
+}
