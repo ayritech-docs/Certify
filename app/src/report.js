@@ -179,6 +179,11 @@ async function buildReport({ config, data, ctx }) {
   doc.setTitle(`${data.name || 'Intern'} – Work report ${ctx.certId}`);
   doc.setAuthor(org);
   doc.setProducer('Certify');
+  // A fixed date (the approval) instead of "now", so the same report always comes out byte-for-byte the same.
+  if (ctx.fileDate) {
+    doc.setCreationDate(ctx.fileDate);
+    doc.setModificationDate(ctx.fileDate);
+  }
   return doc.save();
 }
 

@@ -268,26 +268,40 @@ async function viewRecords(view) {
 
 // The verification site: a folder of plain pages and work reports, published for free on GitHub Pages,
 // so QR codes work for anyone without Certify being online.
+// The site updates itself: every approval or revoke pushes it to the GitHub repository behind the address.
+function publishStatusText({ repo, publish: p }) {
+  if (!repo) return 'Automatic updates need a GitHub Pages address. Until then, upload the site folder by hand after each approval.';
+  const when = p.at ? ` (${new Date(p.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })})` : '';
+  if (p.state === 'publishing') return 'Updating the site now…';
+  if (p.state === 'error') return `<span style="color:var(--danger,#b42318)">The last update failed${when}: ${esc(p.error)}</span>`;
+  if (p.state === 'ok') return `Up to date${when}. Changes appear on the site a minute or two after each approval.`;
+  return 'The site updates automatically after each approval or revoke.';
+}
+
 async function verificationSiteDialog() {
-  const { site_url, fixed } = await api('GET', '/api/settings');
+  const settings = await api('GET', '/api/settings');
+  const { site_url, fixed } = settings;
   modal({
     title: 'Verification site',
     body: `
       <p class="muted small" style="margin-top:0">QR codes open each intern's work report from this site, so anyone can scan them, even while this computer is off.</p>
-      <ol class="small" style="padding-left:18px;line-height:1.7">
-        <li>Enter the site's address below and save. For a GitHub repository named <code>certify-verify</code> it is <code>https://&lt;your-username&gt;.github.io/certify-verify</code>.</li>
-        <li>Click <b>Download site folder</b> and unzip it.</li>
-        <li>Upload everything inside the <b>verification-site</b> folder to the repository (<b>Add file → Upload files</b> on GitHub), replacing what is there.</li>
-        <li>The first time only: in the repository's <b>Settings → Pages</b>, publish from the <b>main</b> branch. The site is live a minute or two later.</li>
-      </ol>
-      <p class="small">After approving or revoking certificates, repeat steps 2 and 3 to update the site. Certificates downloaded before the address was saved still point to this computer, so download them again.</p>
+      <p class="small" id="site-status">${publishStatusText(settings)}</p>
       <label class="field"><span>Site address</span>
         <input id="site-url" placeholder="https://your-username.github.io/certify-verify" value="${esc(site_url)}" ${fixed ? 'disabled' : ''}></label>
-      ${fixed ? '<p class="muted small">Set by the PUBLIC_URL environment variable, which overrides this setting.</p>' : ''}`,
+      ${fixed ? '<p class="muted small">Set by the PUBLIC_URL environment variable, which overrides this setting.</p>' : ''}
+      <p class="muted small">Pushes use the GitHub login saved on this computer, which needs write access to <code>${esc(settings.repo || 'the repository')}</code>. Certificates downloaded before the address changed still point to the old one, so download them again.</p>`,
     actions: `<button class="btn" id="site-dl">${icons.download} Download site folder</button>
+      ${settings.repo ? '<button class="btn" id="site-pub">Update now</button>' : ''}
       ${fixed ? '' : '<button class="btn primary" id="site-save">Save address</button>'}`,
     onMount: (el) => {
+      const refresh = (s) => { $('#site-status', el).innerHTML = publishStatusText(s); };
       $('#site-dl', el).onclick = () => download('/api/site-export', 'verification-site.zip');
+      $('#site-pub', el)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+        $('#site-status', el).textContent = 'Updating the site now…';
+        const p = await api('POST', '/api/site-publish');
+        refresh({ repo: settings.repo, publish: p });
+        if (p.state === 'ok') toast('Verification site updated', 'success');
+      }));
       $('#site-save', el)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
         const r = await api('PUT', '/api/settings', { site_url: $('#site-url', el).value });
         $('#site-url', el).value = r.site_url;

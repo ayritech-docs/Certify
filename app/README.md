@@ -23,6 +23,12 @@ Open http://localhost:3000 and sign in as **admin / admin123**. Change this pass
 4. **Issue.** Download one merged PDF for printing, a ZIP of individual PDFs, or a single certificate.
 5. **Verify.** Every certificate has a unique ID and a QR code that links to `/verify/<id>`. Anyone can check that it is genuine there. Approvers can revoke a certificate if needed.
 
+## Verification site (GitHub Pages)
+
+QR codes can open a public copy of the verification pages, so they work even while this computer is off. Set the site's address under **Records → Verification site**, e.g. `https://ayritech-docs.github.io/Certify`.
+
+When the address is a GitHub Pages site, the app keeps it up to date by itself: every approval or revoke, saving the address, and each server start push the pages to the matching repository (`https://github.com/<owner>/<repo>`). It uses the GitHub login already saved on this computer for git, which needs write access to that repository. Only `index.html`, `404.html`, `.nojekyll` and `verify/` are written; anything else in the repository is left alone, and pages are never deleted, so a printed QR code keeps working. **Update now** in the same dialog pushes on demand and shows any error.
+
 ## Roles (managed under **Users**)
 
 | Role     | Can do |
@@ -38,6 +44,7 @@ Open http://localhost:3000 and sign in as **admin / admin123**. Change this pass
 | `PORT`       | Port to listen on (default `3000`) |
 | `PUBLIC_URL` | Address encoded in the QR codes, e.g. `https://certs.example.org`. Set this when you host the app so the QR codes work for other people. Without it, QR codes use this computer's local network address, so they only open on phones connected to the same Wi-Fi. |
 | `ANTHROPIC_API_KEY` | Turns on the AI writing assistant (get a key at console.anthropic.com). Without it, the built-in writing check still works. |
+| `SITE_REPO`  | Optional. The git repository the verification site is pushed to, when it can't be worked out from the site address. |
 | `CERTIFY_AI_MODEL` | Optional. The Claude model the assistant uses (default `claude-opus-5-5`). |
 
 To start the app with the AI assistant on Windows PowerShell:

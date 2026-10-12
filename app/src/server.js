@@ -9,6 +9,7 @@ const { defaultTemplateConfig, extractFields, normKey, fill, fixedSignatories, b
 const { CATEGORIES, presetList } = require('./presets');
 const ai = require('./ai');
 const { buildReport } = require('./report');
+const { publish, repoFor, status: publishStatus } = require('./publish');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -474,6 +475,7 @@ app.post('/api/batches/:id/approve', auth, need('approve'), (req, res) => {
     review_comment = ?, template_snapshot = ?, approver_snapshot = ? WHERE id = ?`)
     .run(req.user.id, req.body?.comment || null, t.config, approver, batch.id);
   log(batch.id, req.user.id, 'approved', req.body?.comment || null);
+  publishSite();
   res.json({ ok: true });
 });
 
@@ -525,6 +527,7 @@ app.post('/api/certificates/:id/revoke', auth, need('approve'), (req, res) => {
   const revoked = req.body?.revoked ? 1 : 0;
   db.prepare('UPDATE certificates SET revoked = ? WHERE id = ?').run(revoked, cert.id);
   log(cert.batch_id, req.user.id, revoked ? 'revoked' : 'restored', `${JSON.parse(cert.data).name} (${cert.id})`);
+  publishSite();
   res.json({ ok: true });
 });
 
@@ -648,6 +651,7 @@ function reportPdf(cert, batch, base) {
       issueDate: issueDateOf(batch, data),
       pageUrl: base ? `${base}/verify/${cert.id}` : null,
       watermark: cert.revoked ? 'REVOKED' : 'INTERN VERIFICATION',
+      fileDate: batch.reviewed_at ? new Date(batch.reviewed_at.replace(' ', 'T') + 'Z') : null,
     },
   });
 }
@@ -697,40 +701,59 @@ function sendVerifyPage(res, id, r) {
 }
 
 // ---------- verification site (static export for Netlify Drop / GitHub Pages) ----------
-app.get('/api/settings', auth, (req, res) => res.json({ site_url: getSetting('site_url'), fixed: !!PUBLIC_URL }));
+app.get('/api/settings', auth, (req, res) => res.json({
+  site_url: getSetting('site_url'), fixed: !!PUBLIC_URL, repo: repoFor(siteUrl()), publish: publishStatus,
+}));
 
 app.put('/api/settings', auth, need('approve'), (req, res) => {
   let url = String(req.body?.site_url || '').trim().replace(/\/+$/, '');
   if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
   if (url && !/^https?:\/\/[^\s/?#]+\.[^\s/?#]+(\/[^\s?#]*)?$/i.test(url)) return res.status(400).json({ error: 'That does not look like a web address, e.g. https://your-username.github.io/certify-verify' });
   db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run('site_url', url);
-  res.json({ site_url: url });
+  publishSite();
+  res.json({ site_url: url, repo: repoFor(siteUrl()) });
 });
 
-// A folder with a page and a work report for every issued certificate, ready to drag onto Netlify Drop.
+// The verification site: a page and a work report for every issued certificate.
 // Layout: verify/<ID> (the page, as <ID>.html) and verify/<ID>.pdf (the report the QR code opens).
 // Revoked certificates stay on the site, marked as revoked, so a scan never looks like a missing record.
-app.get('/api/site-export', auth, need('approve'), wrap(async (req, res) => {
+async function siteFiles() {
   const base = siteUrl();
   const rows = db.prepare(`SELECT c.* FROM certificates c JOIN batches b ON b.id = c.batch_id
     WHERE b.status = 'approved' ORDER BY c.rowid`).all();
-  const zip = new JSZip();
-  const site = zip.folder('verification-site');
+  const files = [];
   for (const cert of rows) {
     const batch = getBatch(cert.batch_id);
     const r = certDetails(cert, batch, JSON.parse(batch.template_snapshot));
-    site.file(`verify/${cert.id}.html`, verifyPageHtml({ title: pageTitle(r), body: confirmationCard(r), root: '../' }));
-    site.file(`verify/${cert.id}.pdf`, await reportPdf(cert, batch, base));
+    files.push({ path: `verify/${cert.id}.html`, content: verifyPageHtml({ title: pageTitle(r), body: confirmationCard(r), root: '../' }) });
+    files.push({ path: `verify/${cert.id}.pdf`, content: Buffer.from(await reportPdf(cert, batch, base)) });
   }
-  site.file('index.html', verifyPageHtml({
+  files.push({ path: 'index.html', content: verifyPageHtml({
     title: 'Verify certificate',
     body: messageCard('Verify a certificate', 'Enter the certificate ID printed on the certificate, or scan its QR code.', 'good'),
     root: '',
-  }));
+  }) });
   // 404.html is served at any depth, so its search box needs the site's full address (a GitHub Pages site lives under /<repo>/).
-  site.file('404.html', verifyPageHtml({ title: 'Not found', body: messageCard('Not found', 'No issued certificate matches this address. Check the certificate ID and try again.'), root: base ? base + '/' : '/' }));
+  files.push({ path: '404.html', content: verifyPageHtml({ title: 'Not found', body: messageCard('Not found', 'No issued certificate matches this address. Check the certificate ID and try again.'), root: base ? base + '/' : '/' }) });
   // Stops GitHub Pages running the folder through Jekyll.
-  site.file('.nojekyll', '');
+  files.push({ path: '.nojekyll', content: '' });
+  return files;
+}
+
+// Pushes the site to its GitHub repository in the background (does nothing when the site isn't on GitHub Pages).
+const publishSite = () => publish(siteFiles, siteUrl());
+
+app.post('/api/site-publish', auth, need('approve'), wrap(async (req, res) => {
+  if (!repoFor(siteUrl())) return res.status(400).json({ error: 'Automatic publishing needs a GitHub Pages site address, e.g. https://your-username.github.io/certify-verify' });
+  await publishSite();
+  res.json(publishStatus);
+}));
+
+// The same site as a folder to upload by hand.
+app.get('/api/site-export', auth, need('approve'), wrap(async (req, res) => {
+  const zip = new JSZip();
+  const site = zip.folder('verification-site');
+  for (const f of await siteFiles()) site.file(f.path, f.content);
   const buf = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', 'attachment; filename="verification-site.zip"');
@@ -744,4 +767,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong: ' + err.message });
 });
 
-app.listen(PORT, () => console.log(`Certify is running at http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Certify is running at http://localhost:${PORT}`);
+  // Catch up on anything approved while the server was off.
+  publishSite();
+});
