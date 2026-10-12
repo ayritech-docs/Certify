@@ -1,0 +1,64 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Verify certificate</title><style>:root {
+  --bg: #f4f2ec;
+  --paper: #ffffff;
+  --ink: #1c1f2a;
+  --muted: #6b7083;
+  --line: #e4e1d6;
+  --good: #12805c;
+  --good-soft: #e3f6ee;
+  --bad: #c4314b;
+  --bad-soft: #fde8ec;
+  --accent: #3a3536;
+  --brand: #f5873a;
+}
+body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+main { max-width: 680px; margin: 0 auto; padding: 32px 16px 48px; }
+
+.letter { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 32px 36px; box-shadow: 0 8px 30px rgba(28, 31, 42, .07); }
+.letter header { text-align: center; padding-bottom: 20px; border-bottom: 3px solid var(--brand); margin-bottom: 22px; }
+.letter .logo { max-width: 200px; max-height: 90px; object-fit: contain; display: block; margin: 0 auto 10px; }
+.letter .org { font-family: Georgia, 'Times New Roman', serif; font-size: 22px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+
+.status { border-radius: 8px; padding: 10px 14px; font-weight: 600; margin-bottom: 20px; }
+.status.good { background: var(--good-soft); color: var(--good); }
+.status.bad { background: var(--bad-soft); color: var(--bad); }
+.letter.revoked .lead, .letter.revoked .work { opacity: .6; }
+
+.lead { font-size: 16px; margin: 0 0 22px; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+.work { margin: 0 0 24px; padding-left: 20px; }
+.work li { margin-bottom: 6px; }
+
+dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; margin: 0; padding: 16px 0; border-top: 1px solid var(--line); }
+dt { color: var(--muted); }
+dd { margin: 0; font-weight: 600; }
+code { font-size: 13px; }
+
+footer { display: flex; justify-content: flex-end; margin-top: 18px; }
+.signoff { text-align: center; min-width: 220px; display: flex; flex-direction: column; align-items: center; }
+.marks { position: relative; height: 110px; width: 240px; }
+.marks .sig { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); max-width: 240px; max-height: 100px; object-fit: contain; z-index: 2; }
+.marks .stamp { position: absolute; left: 0; bottom: -6px; width: 105px; height: 105px; object-fit: contain; opacity: .85; z-index: 1; }
+.signoff .line { width: 220px; border-top: 1px solid var(--ink); margin: 4px 0 6px; }
+.signoff span { color: var(--muted); font-size: 14px; }
+
+form { display: flex; gap: 8px; margin-top: 24px; }
+input { flex: 1; min-width: 0; border: 1px solid #d5d8e3; border-radius: 8px; padding: 10px 12px; font: inherit; background: var(--paper); color: var(--ink); }
+button { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+
+@media (max-width: 520px) {
+  .letter { padding: 22px 18px; }
+  footer { justify-content: center; }
+}
+@media print {
+  body { background: #fff; }
+  form { display: none; }
+  .letter { box-shadow: none; border: 0; }
+}
+.report-btn { display: block; text-align: center; background: var(--brand); color: #fff; text-decoration: none; font-weight: 600; border-radius: 8px; padding: 12px 16px; margin: 0 0 24px; }
+.report-btn:hover { filter: brightness(.95); }
+</style></head><body>
+<main><div class="letter"><div class="status good">Verify a certificate</div><p>Enter the certificate ID printed on the certificate, or scan its QR code.</p></div>
+<form onsubmit="event.preventDefault();location.href='verify/'+encodeURIComponent(this.cert.value.trim().toUpperCase())"><input name="cert" placeholder="Check another certificate ID, e.g. CRT-26-ABCD2345" value="" required><button>Verify</button></form>
+</main></body></html>
